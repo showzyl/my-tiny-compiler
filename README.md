@@ -11,3 +11,4 @@
 
 
 [参考资料](https://github.com/1c7/the-super-tiny-compiler/blob/master/super-tiny-compiler.js)
+[视频](https://www.youtube.com/watch?v=Tar4WgAfMr4)
