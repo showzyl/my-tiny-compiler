@@ -1,9 +1,9 @@
 /**
  * Created by showzyl on 16/8/2.
  */
+'use strict';
 
-
-// 转换tokens
+// 杞崲tokens
 function tokenizer(input){
   input = trim(input);
   let current = 0;
@@ -75,7 +75,7 @@ function tokenizer(input){
   return tokens;
 }
 
-// 生成 AST
+// 鐢熸垚 AST
 function parser(tokens){
   let current = 0;
 
@@ -96,7 +96,7 @@ function parser(tokens){
         name: token.value,
         params: []
       };
-      // 跳过函数
+      // 璺宠繃鍑芥暟
       token = tokens[++current];
 
       while( token.type !== 'paren' ||
