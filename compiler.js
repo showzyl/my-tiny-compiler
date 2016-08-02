@@ -1,16 +1,16 @@
 /**
- * Created by showzyl on 16/8/2.
+ * Created by showzyl on 16/8/1.
  */
 'use strict';
 
-// 转换tokens
-function tokenizer(input){
-  input = trim(input);
+// 转换为token
+function tokenizer(input) {
   let current = 0;
   let tokens = [];
-  while(current < input.length){
+  while (current < input.length) {
     let char = input[current];
-    if(char === '('){
+
+    if (char === '(') {
       tokens.push({
         type: 'paren',
         value: '('
@@ -18,7 +18,8 @@ function tokenizer(input){
       current++;
       continue;
     }
-    if(char === ')'){
+
+    if (char === ')') {
       tokens.push({
         type: 'paren',
         value: ')'
@@ -27,16 +28,16 @@ function tokenizer(input){
       continue;
     }
 
-    let WHITESPACE = /\s/;
-    if(WHITESPACE.test(char)){
+    const WHITESPACE = /\s/;
+    if (WHITESPACE.test(char)) {
       current++;
       continue;
     }
 
-    let NUMBER = /\d/;
-    if(NUMBER.test(char)){
+    const NUMBERS = /[0-9]/;
+    if (NUMBERS.test(char)) {
       let value = '';
-      while (NUMBER.test(char)){
+      while (NUMBERS.test(char)) {
         value += char;
         char = input[++current];
       }
@@ -47,10 +48,10 @@ function tokenizer(input){
       continue;
     }
 
-    let LETTERS = /[a-z]/i;
-    if(LETTERS.test(char)){
+    const LETTERS = /[a-z]/i;
+    if (LETTERS.test(char)) {
       let value = '';
-      while (LETTERS.test(char)){
+      while (LETTERS.test(char)) {
         value += char;
         char = input[++current];
       }
@@ -60,69 +61,194 @@ function tokenizer(input){
       });
       continue;
     }
-
     throw new TypeError('I dont know what this character is: ' + char);
-
   }
-  //console.log(tokens);
-
-  function trim(str){
-    var reg = /^[\s\t ]+|[\s\t $]+$/ig;
-    str = str.replace(reg, '');
-    return str;
-  }
-
   return tokens;
 }
 
-// 生成 AST
-function parser(tokens){
+// 转换为ast
+function parser(tokens) {
   let current = 0;
-
-  function _walk(){
+  function walk() {
     let token = tokens[current];
-
-    if(token.type === 'number'){
+    if (token.type === 'number') {
       current++;
       return {
-        type: 'numberLiteral',
+        type: 'NumberLiteral',
         value: token.value
-      }
+      };
     }
-    if(token.type === 'paren' && token.value === '('){
+    if (
+      token.type === 'paren' &&
+      token.value === '('
+    ) {
       token = tokens[++current];
       let node = {
         type: 'CallExpression',
-        name: token.value,
+        name: token.value, // add or subtract, you get the idea
         params: []
       };
-      // 跳过函数
       token = tokens[++current];
-
-      while( token.type !== 'paren' ||
-      (token.type === 'paren' && token.value !== ')')  ){
-        node.params.push(_walk());
+      while (
+      (token.type !== 'paren') ||
+      (token.type === 'paren' && token.value !== ')')
+        ) {
+        node.params.push(walk());
         token = tokens[current];
       }
       current++;
-      return node;
       //return JSON.stringify(node);
+      return node;
     }
-    throw new Error(token.type);
+
+    // 同样, 认不出 token 类型就报错
+    throw new TypeError(token.type);
   }
 
+  // 现在根据 token 数组创建 AST， AST 根节点类型是 "Program" 代表我们的整个程序
   let ast = {
     type: 'Program',
     body: []
   };
-
-  while(current < tokens.length){
-    ast.body.push(_walk());
+  // 现在我们要调用前面定义的 walk 函数, 把节点 push 到
+  // 这里用 while 循环, 是因为我们的程序可以多个 CallExpressions 并排, 不一定要嵌套
+  //   (add 2 2)(subtract 4 2)
+  while (current < tokens.length) {
+    ast.body.push(walk());
   }
 
   return ast;
+  // 最后返回 AST
+}
+
+function traverser(ast, visitor) {
+
+  function traverseArray(array, parent) {
+    array.forEach(function (child) {
+      traverseNode(child, parent);
+    });
+  }
+
+  function traverseNode(node, parent) {
+    let method = visitor[node.type];
+    if (method) {
+      method(node, parent);
+    }
+    switch (node.type) {
+      case 'Program':
+        traverseArray(node.body, node);
+        break;
+      case 'CallExpression':
+        traverseArray(node.params, node);
+        break;
+      case 'NumberLiteral':
+        break;
+      default:
+        throw new TypeError(node.type);
+    }
+  }
+  traverseNode(ast, null);
+}
+
+function transformer(ast) {
+  let newAst = {
+    type: 'Program',
+    body: []
+  };
+  ast._context = newAst.body;
+  traverser(ast, {
+    NumberLiteral: function (node, parent) {
+      parent._haha.push({
+        type: 'NumberLiteral',
+        value: node.value
+      });
+    },
+    CallExpression: function (node, parent) {
+      let expression = {
+        type: 'CallExpression',
+        callee: {
+          type: 'Identifier',
+          name: node.name
+        },
+        arguments: []
+      };
+      node._haha = expression.arguments;
+      if (parent.type !== 'CallExpression') {
+        expression = {
+          type: 'ExpressionStatement',
+          expression: expression
+        };
+        parent._context.push(expression); // 如果是 add 就会调用到这里
+      } else {
+        parent._haha.push(expression); // 如果是 subtract 就会调用到这里
+      }
+    }
+  });
+
+  return newAst;
+}
+
+function codeGenerator(node){
+  switch (node.type) {
+    case 'Program':
+      return node.body.map(codeGenerator)
+        .join('\n');
+    case 'ExpressionStatement':
+      return (
+        codeGenerator(node.expression) +
+        ';' // << (...because we like to code the *correct* way)
+      );
+    case 'CallExpression':
+      return (
+        codeGenerator(node.callee) +
+        '(' +
+        node.arguments.map(codeGenerator)
+          .join(', ') +
+        ')'
+      );
+    // 对于函数名就直接返回名字, 不然就永远递归下去了, 要有基础案例(base case)才行
+    case 'Identifier':
+      return node.name;
+    // 对于数字节点就返回数字, 同理
+    case 'NumberLiteral':
+      return node.value;
+    default:
+      throw new TypeError(node.type);
+  }
 }
 
 
 let tokens = tokenizer('(add 12 (t 3 4))');
-console.log(parser(tokens));
+//console.log(tokens);
+let ast = parser(tokens);
+//console.log(ast);
+let newAst = transformer(ast);
+console.log(newAst);
+let code = codeGenerator(newAst)
+console.log(code);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
